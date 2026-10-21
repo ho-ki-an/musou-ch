@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>無窓居室判定ツール</title>
+<style>
+:root{
+  --line:#1f4e79; --head:#e60012; --ok:#1f4e79; --ng:#00a050; --mark:#1a1a1a;
+  --bg:#ffffff; --sub:#f3f7fb; --muted:#8a8a8a; --hl:#ffb000; --hl2:#ffff00;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:#222;
+  font-family:"Yu Gothic UI","Meiryo","Hiragino Kaku Gothic ProN",sans-serif;font-size:14px}
+h1{font-size:20px;margin:0 0 12px;color:var(--line)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+button{font:inherit;padding:6px 14px;border:1px solid var(--line);background:#fff;color:var(--line);border-radius:4px;cursor:pointer}
+button:hover{background:var(--sub)}
+button.primary{background:var(--line);color:#fff}
+/* タイトル・ボタンと表の見出しは、室が増えてスクロールしても常に表示する。
+   表は枠の中でスクロールし、見出し(thead)は枠の上端に固定する */
+.topbar{position:sticky;top:0;z-index:10;background:var(--bg);margin:-16px -16px 0;padding:16px 16px 0}
+.wrap{overflow:auto;border:2px solid var(--line);max-height:max(260px, calc(100vh - var(--topH, 110px) - 16px))}
+table.main thead{position:sticky;top:0;z-index:3}
+/* 列幅は colgroup で固定し、入力内容やA/B切替で表がずれないようにする。
+   固定した見出しでも罫線が残るよう、罫線は各セルの右と下に引く */
+table.main{border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:1486px}
+table.main th,table.main td{border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center;vertical-align:middle;padding:4px}
+table.main th{color:#000;font-weight:normal;background:#fff;white-space:nowrap}
+table.main th.big{font-size:18px}
+table.main th.sm{font-size:13px}
+table.main td{color:var(--ok);height:46px}
+table.main input[type=text],table.main input[type=number]{width:100%;border:1px solid #c9d6e3;border-radius:3px;padding:4px;font:inherit;color:var(--ok);text-align:center;background:#fff}
+table.main input[type=number]{max-width:80px}
+table.main select{font:inherit;color:var(--ok);border:1px solid #c9d6e3;border-radius:3px;padding:3px}
+.unit{font-size:12px;color:var(--ok);margin-left:2px}
+.cell-num{display:flex;align-items:center;justify-content:center;gap:2px}
+.ratio{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.ratio.ng{color:var(--ng);font-weight:bold}
+.req{line-height:1.25}
+.req .circle{display:inline-block;width:24px;height:24px;border:2px solid var(--mark);border-radius:50%;}
+.req .txt{display:block;font-size:11px;color:#333;margin-top:2px}
+.req.normal{color:var(--muted);font-size:12px}
+/* 行のドラッグ並べ替え */
+.handle{cursor:grab;color:var(--muted);font-size:18px;user-select:none;line-height:1}
+.handle:active{cursor:grabbing}
+#rows tr.dragging{opacity:.4}
+#rows tr.dropBefore td{box-shadow:inset 0 3px 0 var(--ng)}
+#rows tr.dropAfter td{box-shadow:inset 0 -3px 0 var(--ng)}
+/* 入力済みの行 */
+table.main input.grey{background:#d0d0d0;border-color:#a8a8a8}
+.donechk{width:18px;height:18px;cursor:pointer;accent-color:var(--ng)}
+#rows tr.done td{background:#eef8f1}
+.del{border:none;color:#c00;background:none;padding:2px 6px;font-size:16px}
+.alert{margin:18px 0 0;color:var(--head);font-size:16px;line-height:1.7}
+.alert p{margin:0}
+.alert a{color:var(--head);font-weight:bold}
+.ref{display:flex;flex-wrap:wrap;gap:28px;margin-top:40px}
+.ref section{min-width:280px}
+.ref h2{display:inline-block;margin:0 0 8px;padding:3px 10px;font-size:16px;background:var(--hl)}
+.ref h2.y{background:var(--hl2)}
+table.crit{border-collapse:collapse}
+table.crit th,table.crit td{padding:3px 10px;text-align:center}
+table.crit th{font-weight:normal;border-bottom:2px solid var(--line)}
+table.crit tr>*+*{border-left:2px solid var(--line)}
+dl.meas{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 16px}
+dl.meas dt{white-space:nowrap}
+dl.meas dd{margin:0}
+.modesw{display:inline-flex;align-items:center;gap:0;margin-left:12px}
+.modesw .lbl{margin-right:6px;color:var(--ng)}
+.modesw button{border-radius:0;margin-left:-1px;border-color:var(--ng);color:var(--ng)}
+.modesw button:hover{background:#eaf7ef}
+.modesw button:first-of-type{border-radius:4px 0 0 4px}
+.modesw button:last-of-type{border-radius:0 4px 4px 0}
+.modesw button.on{background:var(--ng);color:#fff}
+/* 真ん中3列はA/Bどちらでも同じ幅にする */
+.midbox{width:130px;margin:0 auto}
+.needbox{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px}
+.needbox .need{white-space:nowrap;line-height:1.3}
+.needbox .need b{font-weight:bold}
+.yn{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+.yn label{display:inline-flex;align-items:center;gap:2px;cursor:pointer;white-space:nowrap}
+.yn label.no{color:var(--ng)}
+.note{margin-top:18px;font-size:12px;color:var(--muted);line-height:1.6}
+@media print{
+  .toolbar,.del,.no-print{display:none!important}
+  body{padding:0}
+  .topbar{position:static;margin:0;padding:0}
+  .wrap{max-height:none;overflow:visible}
+  table.main thead{position:static}
+  table.main input,table.main select{border:none}
+}
+</style>
+</head>
+<body>
+<div class="topbar" id="topbar">
+<h1>無窓居室判定ツール(建築基準法)</h1>
+
+<div class="toolbar">
+  <button class="primary" onclick="addRow()">+ 室を追加</button>
+  <button onclick="window.print()">印刷</button>
+  <button onclick="clearAll()">全てクリア</button>
+  <button onclick="saveJSON()">JSON保存</button>
+  <button onclick="document.getElementById('jsonFile').click()">JSON読込</button>
+  <input type="file" id="jsonFile" accept=".json,application/json" style="display:none" onchange="loadJSON(this)">
+  <span class="modesw no-print">
+    <span class="lbl">判定方法:</span>
+    <button id="modeA" onclick="setMode('A')" title="有効面積が分かるとき">A 有効面積を入力</button>
+    <button id="modeB" onclick="setMode('B')" title="有効面積が分からないとき">B 必要面積から判定</button>
+  </span>
+</div>
+</div>
+
+<div class="wrap">
+<table class="main">
+  <colgroup>
+    <col class="no-print" style="width:30px"><col style="width:36px">
+    <col style="width:110px"><col style="width:100px"><col style="width:106px"><col style="width:80px">
+    <col style="width:140px"><col style="width:140px"><col style="width:140px">
+    <col style="width:90px">
+    <col style="width:80px"><col style="width:80px"><col style="width:80px"><col style="width:80px"><col style="width:80px"><col style="width:80px">
+    <col class="no-print" style="width:34px">
+  </colgroup>
+  <thead>
+    <tr class="top">
+      <th class="sm no-print" rowspan="3" title="行をドラッグして順番を入れ替え">順</th>
+      <th class="sm" rowspan="3" title="入力が終わった室にチェック">済</th>
+      <th class="big" rowspan="3">室名</th>
+      <th class="big" rowspan="3">床面積</th>
+      <th class="big" rowspan="3">居室/非居室</th>
+      <th class="sm" rowspan="3" title="無窓居室の印(判定には使いません)">無窓居室</th>
+      <th class="sm" colspan="3" id="midHead">有効面積</th>
+      <th class="sm" rowspan="3" title="避難上有効な開口(直径1mの円が内接、または幅75cm×高さ1.2m以上)があればチェック">35条の3<br>(令111条)</th>
+      <th class="sm" colspan="6">係 る 規 制</th>
+      <th class="sm no-print" rowspan="3"></th>
+    </tr>
+    <tr>
+      <th class="sm" rowspan="2">採光</th>
+      <th class="sm" rowspan="2">換気</th>
+      <th class="sm" rowspan="2">排煙</th>
+      <th class="sm">非常用照明</th>
+      <th class="sm">換気設備</th>
+      <th class="sm">排煙設備</th>
+      <th class="sm">主要構造部</th>
+      <th class="sm">内装制限</th>
+      <th class="sm">歩行距離</th>
+    </tr>
+    <tr>
+      <th class="sm" style="color:var(--muted);font-size:11px">採光</th>
+      <th class="sm" style="color:var(--muted);font-size:11px">換気</th>
+      <th class="sm" style="color:var(--muted);font-size:11px">排煙</th>
+      <th class="sm" style="color:var(--muted);font-size:11px">35条の3</th>
+      <th class="sm" style="color:var(--muted);font-size:11px">内装</th>
+      <th class="sm" style="color:var(--muted);font-size:11px">採光</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+<div class="toolbar no-print" style="margin-top:8px">
+  <button class="primary" onclick="addRow()">+ 室を追加</button>
+</div>
+
+<div class="alert">
+  <p>※ 排煙設備・主要構造部・歩行距離(30m)が掛かる居室は防災図にその対応を明示する</p>
+  <p><a href="緩和一覧.html" target="_blank" rel="noopener">緩和一覧リンク</a></p>
+</div>
+
+<div class="ref">
+  <section>
+    <h2>無窓居室ch</h2>
+    <table class="crit">
+      <tr><th>居室</th><th>採光</th><th>換気</th><th>排煙</th><th>35条</th><th>内装</th></tr>
+      <tr><td>床面積</td><td>1/20</td><td>1/20</td><td>1/50</td><td>1/20</td><td>1/50</td></tr>
+    </table>
+    <div class="note">
+      採光:採光有効面積 / 換気:開放できる部分の面積<br>
+      排煙・内装:天井から下方80cm以内の開放できる部分の面積<br>
+      35条:採光有効面積で判定(避難上有効な開口があれば無窓としない)<br>
+      パターンB:床面積から必要面積を算定し、確保できるか(Yes/No)を入力者が判定
+    </div>
+  </section>
+  <section>
+    <h2>無窓居室にかかる措置</h2>
+    <dl class="meas">
+      <dt>採光無窓</dt><dd>非常用照明(居室+避難経路)<br>歩行距離30m(+10m)、重複距離</dd>
+      <dt>換気無窓</dt><dd>機械換気設備</dd>
+      <dt>排煙無窓</dt><dd>「排煙設備」</dd>
+      <dt>35条の3無窓</dt><dd>主要構造部 耐火・不燃</dd>
+      <dt>内装制限無窓</dt><dd>居室と地上までの避難経路の内装準不燃</dd>
+    </dl>
+  </section>
+  <section>
+    <h2 class="y">歩行/重複距離ch</h2>
+    <dl class="meas">
+      <dt>居室</dt><dd>50m(+10m)/2</dd>
+      <dt>無窓居室</dt><dd>30m(+10m)/2</dd>
+    </dl>
+    <h2 class="y" style="margin-top:16px">廊下幅</h2>
+    <dl class="meas">
+      <dt>片側居室</dt><dd>1.2m</dd>
+      <dt>両側居室</dt><dd>1.6m</dd>
+    </dl>
+  </section>
+</div>
+
+<p class="note">
+※ 簡易判定です。用途・規模・構造による適用除外や緩和(令116条の2、令126条の2、令128条の3の2 等)は個別に確認してください。<br>
+※ 歩行距離の(+10m)は居室及び避難経路の内装を準不燃とした場合の加算、「/2」は重複区間の長さが歩行距離の1/2以下であることを示します。<br>
+※ 入力内容はこのブラウザに自動保存されます。
+</p>
+
+<script>
+const KEY = "mumado_hantei_rows_v1";
+// 判定基準(003)
+const CRIT = { saiko:1/20, kanki:1/20, haien:1/50, art35:1/20, naiso:1/50 };
+
+const MODE_KEY = KEY + "_mode";
+const OKKEY = { saiko:"okSaiko", kanki:"okKanki", haien:"okHaien" }; // パターンBのYes/No("yes"|"no"|"")
+
+let rows = [];
+let MODE = "A"; // A:有効面積を入力 / B:必要面積を算定しYes/Noで判定
+
+function blank(){ return {name:"", area:"", saiko:"", kanki:"", haien:"", okSaiko:"", okKanki:"", okHaien:"", open35:false, mumado:false, kind:"居室", done:false, grey:{}}; }
+function load(){ try{ const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? v.map(r => Object.assign(blank(), r)) : []; }catch(e){ return []; } }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(rows)); localStorage.setItem(MODE_KEY, MODE); }catch(e){} }
+function loadMode(){ try{ return localStorage.getItem(MODE_KEY) === "B" ? "B" : "A"; }catch(e){ return "A"; } }
+
+function setMode(m){ MODE = m; save(); render(); }
+
+function addRow(){ rows.push(blank()); save(); render(); }
+function delRow(i){ rows.splice(i,1); save(); render(); }
+function clearAll(){ if(confirm("全ての入力を消去しますか?")){ rows = [blank()]; save(); render(); } }
+
+function saveJSON(){
+  const data = { app:"mumado_hantei", version:2, savedAt:new Date().toISOString(), mode:MODE, rows };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+  const d = new Date(), z = n => String(n).padStart(2,"0");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `無窓居室判定_${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function loadJSON(input){
+  const f = input.files[0];
+  input.value = ""; // 同じファイルを続けて読み込めるようにする
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      const list = Array.isArray(data) ? data : data.rows;
+      if (!Array.isArray(list)) throw new Error("rows がありません");
+      if (!confirm(`${list.length}室のデータを読み込みます。現在の入力は置き換わります。よろしいですか?`)) return;
+      // 不足している項目は初期値で補う
+      rows = list.map(r => Object.assign(blank(), r, { open35: !!(r && r.open35), mumado: !!(r && r.mumado), done: !!(r && r.done), grey: (r && r.grey && typeof r.grey === "object") ? r.grey : {} }));
+      if (!rows.length) rows = [blank()];
+      if (data.mode === "A" || data.mode === "B") MODE = data.mode;
+      save(); render();
+    } catch(e) {
+      alert("JSONファイルを読み込めませんでした。\n" + e.message);
+    }
+  };
+  reader.readAsText(f, "utf-8");
+}
+
+function judge(r){
+  const A = parseFloat(r.area);
+  if (r.kind !== "居室") return {na:true};
+  if (!(A > 0)) return {empty:true};
+  if (MODE === "B"){
+    const need = { saiko:A*CRIT.saiko, kanki:A*CRIT.kanki, haien:A*CRIT.haien };
+    const no = k => r[OKKEY[k]] === "no";
+    return {
+      need,
+      saiko: no("saiko"),
+      kanki: no("kanki"),
+      haien: no("haien"),
+      art35: no("saiko") && !r.open35,
+      naiso: no("haien"),
+    };
+  }
+  const num = k => { const v = parseFloat(r[k]); return isNaN(v) ? 0 : v; };
+  const ratio = { saiko:num("saiko")/A, kanki:num("kanki")/A, haien:num("haien")/A };
+  // 浮動小数点の誤差を吸収して「以上」で判定
+  const lt = (x, c) => x < c - 1e-9;
+  return {
+    ratio,
+    saiko: lt(ratio.saiko, CRIT.saiko),
+    kanki: lt(ratio.kanki, CRIT.kanki),
+    haien: lt(ratio.haien, CRIT.haien),
+    art35: lt(ratio.saiko, CRIT.art35) && !r.open35,
+    naiso: lt(ratio.haien, CRIT.naiso),
+  };
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = x => (x*100).toFixed(2) + "%";
+const ceil2 = x => Math.ceil(x*100 - 1e-9) / 100; // 必要面積は安全側に切り上げ
+const circle = txt => `<div class="req"><span class="circle"></span><span class="txt">${txt}</span></div>`;
+const blankCell = () => `<div class="req normal"></div>`;
+
+// 表全体を描画する(行の追加・削除時のみ)。入力中は updateResult で判定結果だけ更新する
+function render(){
+  const tb = document.getElementById("rows");
+  tb.innerHTML = rows.map((r,i) => {
+    // 右クリックで入力枠をグレーにする(もう一度で戻る)
+    const g = (k) => `class="${r.grey && r.grey[k] ? "grey" : ""}" oncontextmenu="return toggleGrey(event,${i},'${k}')"`;
+    const num = (k) => `<div class="cell-num"><input type="number" min="0" step="0.01" value="${esc(r[k])}" ${g(k)} oninput="upd(${i},'${k}',this.value)"><span class="unit">㎡</span></div>`;
+    // 真ん中部分:A=有効面積を入力、B=必要面積を表示してYes/Noを選ぶ
+    const mid = (k) => `<div class="midbox">` + (MODE === "A"
+      ? `${num(k)}<span class="ratio" data-k="${k}"></span>`
+      : `<div class="needbox">
+          <span class="need">必要<br><b data-need="${k}">—</b>㎡</span>
+          <span class="yn">
+            <label><input type="radio" name="yn${i}${k}" value="yes" ${r[OKKEY[k]]==="yes"?"checked":""} onchange="upd(${i},'${OKKEY[k]}','yes')">Yes</label>
+            <label class="no"><input type="radio" name="yn${i}${k}" value="no" ${r[OKKEY[k]]==="no"?"checked":""} onchange="upd(${i},'${OKKEY[k]}','no')">No</label>
+          </span>
+        </div>`) + `</div>`;
+    return `<tr data-i="${i}" ondragover="dragOverRow(event)" ondragleave="clearDrop(this)" ondrop="dropRow(event,${i})">
+      <td class="no-print"><span class="handle" draggable="true" title="ドラッグして順番を入れ替え" ondragstart="dragRow(event,${i})" ondragend="dragEndRow()">⋮⋮</span></td>
+      <td><input type="checkbox" class="donechk" ${r.done?"checked":""} onchange="upd(${i},'done',this.checked)" title="入力が終わった室にチェック"></td>
+      <td><input type="text" value="${esc(r.name)}" placeholder="〇〇室" ${g("name")} oninput="upd(${i},'name',this.value)"></td>
+      <td>${num("area")}</td>
+      <td><select onchange="upd(${i},'kind',this.value)">
+        <option ${r.kind==="居室"?"selected":""}>居室</option>
+        <option ${r.kind==="非居室"?"selected":""}>非居室</option>
+      </select></td>
+      <td><input type="checkbox" ${r.mumado?"checked":""} onchange="upd(${i},'mumado',this.checked)" title="無窓居室の印(判定には使いません)"></td>
+      <td>${mid("saiko")}</td>
+      <td>${mid("kanki")}</td>
+      <td>${mid("haien")}</td>
+      <td><input type="checkbox" ${r.open35?"checked":""} onchange="upd(${i},'open35',this.checked)" title="避難上有効な開口(直径1mの円が内接、または幅75cm×高さ1.2m以上)があればチェック"></td>
+      ${'<td class="res-req"></td>'.repeat(6)}
+      <td class="no-print"><button class="del" title="削除" onclick="delRow(${i})">×</button></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("modeA").classList.toggle("on", MODE === "A");
+  document.getElementById("modeB").classList.toggle("on", MODE === "B");
+  document.getElementById("midHead").textContent = MODE === "A" ? "有効面積" : "有効面積(必要面積を確保できるか)";
+  rows.forEach((_, i) => updateResult(i));
+}
+
+function updateResult(i){
+  const tr = document.querySelector(`#rows tr[data-i="${i}"]`);
+  if (!tr) return;
+  tr.classList.toggle("done", !!rows[i].done);
+  const j = judge(rows[i]);
+  const CTXT = { saiko:"1/20", kanki:"1/20", haien:"1/50" };
+  tr.querySelectorAll(".ratio").forEach(s => {
+    const k = s.dataset.k;
+    s.className = "ratio" + (j.ratio && j[k] ? " ng" : "");
+    s.innerHTML = j.ratio ? `${pct(j.ratio[k])}${j[k]?' &lt; ':' ≥ '}${CTXT[k]}` : "";
+  });
+  tr.querySelectorAll("[data-need]").forEach(b => {
+    b.textContent = j.need ? ceil2(j.need[b.dataset.need]).toFixed(2) : "—";
+  });
+  let cells;
+  if (j.na){
+    cells = Array(6).fill(`<div class="req normal">—</div>`);
+  } else if (j.empty){
+    cells = Array(6).fill(blankCell());
+  } else {
+    cells = [
+      j.saiko ? circle("居室+避難経路") : blankCell(),
+      j.kanki ? circle("機械換気設備") : blankCell(),
+      j.haien ? circle("排煙設備") : blankCell(),
+      j.art35 ? circle("耐火・不燃") : blankCell(),
+      j.naiso ? circle("居室+避難経路<br>準不燃") : blankCell(),
+      j.saiko ? circle("30m(+10m)<br>重複1/2") : `<div class="req normal">50m(+10m)<br>重複1/2</div>`,
+    ];
+  }
+  tr.querySelectorAll(".res-req").forEach((td, n) => { td.innerHTML = cells[n]; });
+}
+
+// 行のドラッグ並べ替え(取っ手をつかんで移動。行の上半分なら前へ、下半分なら後ろへ入れる)
+let DRAG_I = null;
+function dragRow(ev, i){
+  DRAG_I = i;
+  ev.dataTransfer.effectAllowed = "move";
+  try { ev.dataTransfer.setData("text/plain", "row" + i); } catch(e) {}
+  const tr = ev.target.closest("tr");
+  tr.classList.add("dragging");
+  try { ev.dataTransfer.setDragImage(tr, 20, 20); } catch(e) {}
+}
+function dropPos(ev){ const r = ev.currentTarget.getBoundingClientRect(); return (ev.clientY - r.top) < r.height/2 ? "before" : "after"; }
+function clearDrop(tr){ tr.classList.remove("dropBefore", "dropAfter"); }
+function dragOverRow(ev){
+  if (DRAG_I == null) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = "move";
+  const pos = dropPos(ev), tr = ev.currentTarget;
+  tr.classList.toggle("dropBefore", pos === "before");
+  tr.classList.toggle("dropAfter", pos === "after");
+}
+function dropRow(ev, i){
+  ev.preventDefault();
+  clearDrop(ev.currentTarget);
+  if (DRAG_I == null) return;
+  const from = DRAG_I;
+  let to = dropPos(ev) === "before" ? i : i + 1;
+  DRAG_I = null;
+  if (from < to) to--; // 抜き出した分だけ位置を詰める
+  if (to === from) { render(); return; }
+  const [item] = rows.splice(from, 1);
+  rows.splice(to, 0, item);
+  save(); render();
+}
+function dragEndRow(){
+  DRAG_I = null;
+  document.querySelectorAll("#rows tr").forEach(tr => { tr.classList.remove("dragging"); clearDrop(tr); });
+}
+
+function toggleGrey(ev, i, k){
+  ev.preventDefault(); // ブラウザの右クリックメニューを出さない
+  const r = rows[i];
+  if (!r.grey || typeof r.grey !== "object") r.grey = {};
+  if (r.grey[k]) delete r.grey[k]; else r.grey[k] = true;
+  ev.target.classList.toggle("grey", !!r.grey[k]);
+  save();
+  return false;
+}
+
+function upd(i, k, v){
+  rows[i][k] = v;
+  save();
+  if (k !== "name") updateResult(i);
+}
+
+// 表の枠の高さを「画面の高さ − 上部(タイトル・ボタン)の高さ」に合わせる
+function fitTable(){
+  document.documentElement.style.setProperty("--topH", document.getElementById("topbar").offsetHeight + "px");
+}
+window.addEventListener("resize", fitTable);
+
+MODE = loadMode();
+rows = load();
+if (!rows.length) rows = [blank(), blank()];
+render();
+fitTable();
+</script>
+</body>
+</html>
