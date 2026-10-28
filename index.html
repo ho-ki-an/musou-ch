@@ -24,7 +24,7 @@ button.primary{background:var(--line);color:#fff}
 table.main thead{position:sticky;top:0;z-index:3}
 /* 列幅は colgroup で固定し、入力内容やA/B切替で表がずれないようにする。
    固定した見出しでも罫線が残るよう、罫線は各セルの右と下に引く */
-table.main{border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:1486px}
+table.main{border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:1500px}
 table.main th,table.main td{border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center;vertical-align:middle;padding:4px}
 table.main th{color:#000;font-weight:normal;background:#fff;white-space:nowrap}
 table.main th.big{font-size:18px}
@@ -51,6 +51,10 @@ table.main select{font:inherit;color:var(--ok);border:1px solid #c9d6e3;border-r
 table.main input.grey{background:#d0d0d0;border-color:#a8a8a8}
 .donechk{width:18px;height:18px;cursor:pointer;accent-color:var(--ng)}
 #rows tr.done td{background:#eef8f1}
+/* しおりの行 */
+#rows tr.memo td{background:#fff6d6;height:34px}
+table.main input.memotxt{text-align:left;font-weight:bold;color:#333;background:transparent;border-color:transparent;padding-left:8px}
+table.main input.memotxt:hover,table.main input.memotxt:focus{background:#fff;border-color:#c9d6e3}
 .del{border:none;color:#c00;background:none;padding:2px 6px;font-size:16px}
 .alert{margin:18px 0 0;color:var(--head);font-size:16px;line-height:1.7}
 .alert p{margin:0}
@@ -63,6 +67,14 @@ table.crit{border-collapse:collapse}
 table.crit th,table.crit td{padding:3px 10px;text-align:center}
 table.crit th{font-weight:normal;border-bottom:2px solid var(--line)}
 table.crit tr>*+*{border-left:2px solid var(--line)}
+/* 緩和概要の表 */
+table.relax{border-collapse:collapse;font-size:14px}
+table.relax th,table.relax td{padding:3px 14px;text-align:center;border-bottom:1px solid #555;white-space:nowrap}
+table.relax th{font-weight:normal;border-bottom:2px solid #555}
+table.relax tr:last-child td{border-bottom:2px solid #555}
+table.relax tr>*+*{border-left:1px solid #555}
+.relaxlink{margin:8px 0 0;font-size:16px}
+.relaxlink a{color:var(--head);font-weight:bold}
 dl.meas{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 16px}
 dl.meas dt{white-space:nowrap}
 dl.meas dd{margin:0}
@@ -73,9 +85,21 @@ dl.meas dd{margin:0}
 .modesw button:first-of-type{border-radius:4px 0 0 4px}
 .modesw button:last-of-type{border-radius:0 4px 4px 0}
 .modesw button.on{background:var(--ng);color:#fff}
+/* 床面積30㎡超の室を隠すボタン */
+.hidebtn{display:block;margin:6px auto 0;max-width:100%;font-size:11px;line-height:1.3;padding:2px 6px;border-color:var(--ng);color:var(--ng);white-space:normal}
+.hidebtn.on{background:var(--ng);color:#fff}
+#rows tr.hidden30{display:none}
+/* 表の見出しの中に置くスイッチ */
+.modesw.inhead{display:flex;justify-content:center;margin:2px 0 4px;font-size:12px}
+.modesw.inhead button{padding:3px 10px}
+/* 係る規制:緩和告示の表示と選択 */
+.req .txt.relax{color:#1f4e79;font-weight:bold}
+table.main td.res-req{padding-left:2px;padding-right:2px}
+.relaxsel{width:100%;font-size:11px;padding:1px;text-align:center;text-align-last:center;margin-top:2px;color:#1f4e79;border:1px solid #c9d6e3;border-radius:3px}
+.relaxsel.on{font-weight:bold;border-color:var(--line)}
 /* 真ん中3列はA/Bどちらでも同じ幅にする */
-.midbox{width:130px;margin:0 auto}
-.needbox{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px}
+.midbox{width:110px;margin:0 auto}
+.needbox{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px}
 .needbox .need{white-space:nowrap;line-height:1.3}
 .needbox .need b{font-weight:bold}
 .yn{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
@@ -103,11 +127,6 @@ dl.meas dd{margin:0}
   <button onclick="saveJSON()">JSON保存</button>
   <button onclick="document.getElementById('jsonFile').click()">JSON読込</button>
   <input type="file" id="jsonFile" accept=".json,application/json" style="display:none" onchange="loadJSON(this)">
-  <span class="modesw no-print">
-    <span class="lbl">判定方法:</span>
-    <button id="modeA" onclick="setMode('A')" title="有効面積が分かるとき">A 有効面積を入力</button>
-    <button id="modeB" onclick="setMode('B')" title="有効面積が分からないとき">B 必要面積から判定</button>
-  </span>
 </div>
 </div>
 
@@ -115,10 +134,10 @@ dl.meas dd{margin:0}
 <table class="main">
   <colgroup>
     <col class="no-print" style="width:30px"><col style="width:36px">
-    <col style="width:110px"><col style="width:100px"><col style="width:106px"><col style="width:80px">
-    <col style="width:140px"><col style="width:140px"><col style="width:140px">
-    <col style="width:90px">
-    <col style="width:80px"><col style="width:80px"><col style="width:80px"><col style="width:80px"><col style="width:80px"><col style="width:80px">
+    <col style="width:110px"><col style="width:100px"><col style="width:106px"><col style="width:64px">
+    <col style="width:120px"><col style="width:120px"><col style="width:120px">
+    <col style="width:72px">
+    <col style="width:100px"><col style="width:80px"><col style="width:130px"><col style="width:110px"><col style="width:80px"><col style="width:88px">
     <col class="no-print" style="width:34px">
   </colgroup>
   <thead>
@@ -126,12 +145,28 @@ dl.meas dd{margin:0}
       <th class="sm no-print" rowspan="3" title="行をドラッグして順番を入れ替え">順</th>
       <th class="sm" rowspan="3" title="入力が終わった室にチェック">済</th>
       <th class="big" rowspan="3">室名</th>
-      <th class="big" rowspan="3">床面積</th>
+      <th class="big" rowspan="3">床面積
+        <button id="hide30" class="hidebtn no-print" onclick="toggleHide30()" title="押すたびに 全表示 → 30㎡以下 → 30㎡超 → 100㎡以下 → 100㎡超 と切り替わります">全表示</button>
+      </th>
       <th class="big" rowspan="3">居室/非居室</th>
       <th class="sm" rowspan="3" title="無窓居室の印(判定には使いません)">無窓居室</th>
-      <th class="sm" colspan="3" id="midHead">有効面積</th>
+      <th class="sm" colspan="3">
+        <div class="modesw inhead no-print">
+          <span class="lbl">判定方法:</span>
+          <button id="modeA" onclick="setMode('A')" title="有効面積が分かるとき">A 有効面積を入力</button>
+          <button id="modeB" onclick="setMode('B')" title="有効面積が分からないとき">B 必要面積から判定</button>
+        </div>
+        <span id="midHead">有効面積</span>
+      </th>
       <th class="sm" rowspan="3" title="避難上有効な開口(直径1mの円が内接、または幅75cm×高さ1.2m以上)があればチェック">35条の3<br>(令111条)</th>
-      <th class="sm" colspan="6">係 る 規 制</th>
+      <th class="sm" colspan="6">
+        <div class="modesw inhead no-print">
+          <span class="lbl">表示:</span>
+          <button id="rmodeM" onclick="setRMode('M')" title="必要な措置を表示">措置</button>
+          <button id="rmodeR" onclick="setRMode('R')" title="措置の代わりに使う緩和告示を選ぶ">緩和告示を選ぶ</button>
+        </div>
+        <span>係 る 規 制</span>
+      </th>
       <th class="sm no-print" rowspan="3"></th>
     </tr>
     <tr>
@@ -163,7 +198,6 @@ dl.meas dd{margin:0}
 
 <div class="alert">
   <p>※ 排煙設備・主要構造部・歩行距離(30m)が掛かる居室は防災図にその対応を明示する</p>
-  <p><a href="緩和一覧.html" target="_blank" rel="noopener">緩和一覧リンク</a></p>
 </div>
 
 <div class="ref">
@@ -177,6 +211,7 @@ dl.meas dd{margin:0}
       採光:採光有効面積 / 換気:開放できる部分の面積<br>
       排煙・内装:天井から下方80cm以内の開放できる部分の面積<br>
       35条:採光有効面積で判定(避難上有効な開口があれば無窓としない)<br>
+      内装:床面積50㎡超の居室が対象(50㎡以下は「-」)<br>
       パターンB:床面積から必要面積を算定し、確保できるか(Yes/No)を入力者が判定
     </div>
   </section>
@@ -202,6 +237,18 @@ dl.meas dd{margin:0}
       <dt>両側居室</dt><dd>1.6m</dd>
     </dl>
   </section>
+  <section>
+    <table class="relax">
+      <tr><th>無窓時の対応</th><th>緩和概要</th><th>詳細は告示確認</th></tr>
+      <tr><td>非常用照明</td><td>30㎡・30/20m</td><td>H12 1411号</td></tr>
+      <tr><td>換気設備</td><td>機械換気設置</td><td></td></tr>
+      <tr><td>排煙設備</td><td>100㎡</td><td>H12 1436号</td></tr>
+      <tr><td>主要構造部</td><td>30㎡・30/20m</td><td>R2 249号</td></tr>
+      <tr><td>内装制限</td><td>-</td><td></td></tr>
+      <tr><td>歩行距離</td><td>条件多数</td><td>R5 208号</td></tr>
+    </table>
+    <p class="relaxlink"><a href="緩和一覧.html" target="_blank" rel="noopener">緩和一覧リンク</a></p>
+  </section>
 </div>
 
 <p class="note">
@@ -214,26 +261,98 @@ dl.meas dd{margin:0}
 const KEY = "mumado_hantei_rows_v1";
 // 判定基準(003)
 const CRIT = { saiko:1/20, kanki:1/20, haien:1/50, art35:1/20, naiso:1/50 };
+const NAISO_MIN_AREA = 50; // 内装制限(無窓)は床面積50㎡超の居室が対象
 
 const MODE_KEY = KEY + "_mode";
 const OKKEY = { saiko:"okSaiko", kanki:"okKanki", haien:"okHaien" }; // パターンBのYes/No("yes"|"no"|"")
 
 let rows = [];
 let MODE = "A"; // A:有効面積を入力 / B:必要面積を算定しYes/Noで判定
+let RMODE = "M"; // 係る規制の表示 M:措置 / R:緩和告示を選ぶ
+const RMODE_KEY = KEY + "_rmode";
+// 係る規制の欄ごとの選択肢。先頭は通常の措置(緩和を使わない)。換気設備は告示がないため選択なし
+const RELAX = {
+  hijo:  ["非常用照明", "H12 1411号"],
+  haien: ["機械排煙", "H12 1436号ヘ(1)", "H12 1436号ヘ(2)", "H12 1436号ヘ(3)", "H12 1436号ヘ(4)", "H12 1436号ヘ(5)"],
+  kozo:  ["区画", "R2 249号", "例規2-d-035"],
+  naiso: ["準不", "251号"],
+  hoko:  ["30m", "R5 208号"],
+};
+// 以前の表記(年号なし)で保存されたデータを今の表記に直す
+const RELAX_OLD = { "1411号":"H12 1411号", "249号":"R2 249号", "208号":"R5 208号" };
+function fixRelax(rx){
+  if (!rx || typeof rx !== "object") return {};
+  const out = {};
+  Object.keys(rx).forEach(k => {
+    let v = rx[k];
+    if (RELAX_OLD[v]) v = RELAX_OLD[v];
+    else if (/^1436号ヘ\(\d\)$/.test(v)) v = "H12 " + v;
+    if (RELAX[k] && RELAX[k].includes(v)) out[k] = v;
+  });
+  return out;
+}
 
-function blank(){ return {name:"", area:"", saiko:"", kanki:"", haien:"", okSaiko:"", okKanki:"", okHaien:"", open35:false, mumado:false, kind:"居室", done:false, grey:{}}; }
-function load(){ try{ const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? v.map(r => Object.assign(blank(), r)) : []; }catch(e){ return []; } }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(rows)); localStorage.setItem(MODE_KEY, MODE); }catch(e){} }
+function blank(){ return {name:"", area:"", saiko:"", kanki:"", haien:"", okSaiko:"", okKanki:"", okHaien:"", open35:false, mumado:false, kind:"居室", done:false, grey:{}, relax:{}}; }
+function memoRow(text){ return {type:"memo", text: text || ""}; }
+function load(){ try{ const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? v.map(r => r && r.type === "memo" ? memoRow(r.text) : Object.assign(blank(), r, { relax: fixRelax(r && r.relax) })) : []; }catch(e){ return []; } }
+// 取っ手の右クリック:その行の上にしおりの行を入れ、コメント欄にカーソルを置く
+function addMemo(ev, i){
+  ev.preventDefault();
+  rows.splice(i, 0, memoRow());
+  save(); render();
+  const el = document.querySelector(`#rows tr[data-i="${i}"] .memotxt`);
+  if (el) el.focus();
+  return false;
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(rows)); localStorage.setItem(MODE_KEY, MODE); localStorage.setItem(RMODE_KEY, RMODE); }catch(e){} }
 function loadMode(){ try{ return localStorage.getItem(MODE_KEY) === "B" ? "B" : "A"; }catch(e){ return "A"; } }
+function loadRMode(){ try{ return localStorage.getItem(RMODE_KEY) === "R" ? "R" : "M"; }catch(e){ return "M"; } }
+
+// 床面積による表示の切替:押すたびに次の順で切り替わる(最後の次は全表示に戻る)
+// (しおりの行と床面積未入力の室はいつも表示)
+const AREA_FILTERS = [
+  { label:"全表示",          show: a => true },
+  { label:"30㎡以下を<wbr>表示",  show: a => a <= 30 },
+  { label:"30㎡超を表示",    show: a => a > 30 },
+  { label:"100㎡以下を<wbr>表示", show: a => a <= 100 },
+  { label:"100㎡超を<wbr>表示",   show: a => a > 100 },
+];
+let AFILTER = 0; // 開いたときはいつも全表示
+function toggleHide30(){
+  AFILTER = (AFILTER + 1) % AREA_FILTERS.length;
+  applyHide30();
+}
+// 入力中に行が消えないよう、隠すのは描画時とボタン操作時だけ
+function applyHide30(){
+  const f = AREA_FILTERS[AFILTER];
+  let n = 0;
+  document.querySelectorAll("#rows tr").forEach(tr => {
+    const r = rows[+tr.dataset.i];
+    const a = r && r.type !== "memo" ? parseFloat(r.area) : NaN;
+    const hide = !isNaN(a) && !f.show(a);
+    tr.classList.toggle("hidden30", hide);
+    if (hide) n++;
+  });
+  const b = document.getElementById("hide30");
+  b.classList.toggle("on", AFILTER !== 0);
+  b.innerHTML = AFILTER === 0 ? f.label : `${f.label}<br>(${n}室 非表示)`;
+}
 
 function setMode(m){ MODE = m; save(); render(); }
+function setRMode(m){ RMODE = m; save(); render(); }
+function setRelax(i, k, v){
+  const r = rows[i];
+  if (!r.relax || typeof r.relax !== "object") r.relax = {};
+  if (v && v !== RELAX[k][0]) r.relax[k] = v; else delete r.relax[k];
+  save(); updateResult(i);
+}
 
 function addRow(){ rows.push(blank()); save(); render(); }
 function delRow(i){ rows.splice(i,1); save(); render(); }
 function clearAll(){ if(confirm("全ての入力を消去しますか?")){ rows = [blank()]; save(); render(); } }
 
 function saveJSON(){
-  const data = { app:"mumado_hantei", version:2, savedAt:new Date().toISOString(), mode:MODE, rows };
+  const data = { app:"mumado_hantei", version:2, savedAt:new Date().toISOString(), mode:MODE, rmode:RMODE, rows };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   const d = new Date(), z = n => String(n).padStart(2,"0");
   const a = document.createElement("a");
@@ -255,9 +374,10 @@ function loadJSON(input){
       if (!Array.isArray(list)) throw new Error("rows がありません");
       if (!confirm(`${list.length}室のデータを読み込みます。現在の入力は置き換わります。よろしいですか?`)) return;
       // 不足している項目は初期値で補う
-      rows = list.map(r => Object.assign(blank(), r, { open35: !!(r && r.open35), mumado: !!(r && r.mumado), done: !!(r && r.done), grey: (r && r.grey && typeof r.grey === "object") ? r.grey : {} }));
+      rows = list.map(r => r && r.type === "memo" ? memoRow(r.text) : Object.assign(blank(), r, { open35: !!(r && r.open35), mumado: !!(r && r.mumado), done: !!(r && r.done), grey: (r && r.grey && typeof r.grey === "object") ? r.grey : {}, relax: fixRelax(r && r.relax) }));
       if (!rows.length) rows = [blank()];
       if (data.mode === "A" || data.mode === "B") MODE = data.mode;
+      if (data.rmode === "M" || data.rmode === "R") RMODE = data.rmode;
       save(); render();
     } catch(e) {
       alert("JSONファイルを読み込めませんでした。\n" + e.message);
@@ -306,6 +426,13 @@ const blankCell = () => `<div class="req normal"></div>`;
 function render(){
   const tb = document.getElementById("rows");
   tb.innerHTML = rows.map((r,i) => {
+    const handle = `<td class="no-print"><span class="handle" draggable="true" title="ドラッグして順番を入れ替え/右クリックで上にしおりを挿入" ondragstart="dragRow(event,${i})" ondragend="dragEndRow()" oncontextmenu="return addMemo(event,${i})">⋮⋮</span></td>`;
+    // しおりの行:区切りのコメントだけを入れる(判定はしない)
+    if (r.type === "memo") return `<tr data-i="${i}" class="memo" ondragover="dragOverRow(event)" ondragleave="clearDrop(this)" ondrop="dropRow(event,${i})">
+      ${handle}
+      <td colspan="15"><input type="text" class="memotxt" value="${esc(r.text)}" placeholder="しおり(コメントを入力)" oninput="upd(${i},'text',this.value)"></td>
+      <td class="no-print"><button class="del" title="削除" onclick="delRow(${i})">×</button></td>
+    </tr>`;
     // 右クリックで入力枠をグレーにする(もう一度で戻る)
     const g = (k) => `class="${r.grey && r.grey[k] ? "grey" : ""}" oncontextmenu="return toggleGrey(event,${i},'${k}')"`;
     const num = (k) => `<div class="cell-num"><input type="number" min="0" step="0.01" value="${esc(r[k])}" ${g(k)} oninput="upd(${i},'${k}',this.value)"><span class="unit">㎡</span></div>`;
@@ -320,7 +447,7 @@ function render(){
           </span>
         </div>`) + `</div>`;
     return `<tr data-i="${i}" ondragover="dragOverRow(event)" ondragleave="clearDrop(this)" ondrop="dropRow(event,${i})">
-      <td class="no-print"><span class="handle" draggable="true" title="ドラッグして順番を入れ替え" ondragstart="dragRow(event,${i})" ondragend="dragEndRow()">⋮⋮</span></td>
+      ${handle}
       <td><input type="checkbox" class="donechk" ${r.done?"checked":""} onchange="upd(${i},'done',this.checked)" title="入力が終わった室にチェック"></td>
       <td><input type="text" value="${esc(r.name)}" placeholder="〇〇室" ${g("name")} oninput="upd(${i},'name',this.value)"></td>
       <td>${num("area")}</td>
@@ -340,12 +467,15 @@ function render(){
   document.getElementById("modeA").classList.toggle("on", MODE === "A");
   document.getElementById("modeB").classList.toggle("on", MODE === "B");
   document.getElementById("midHead").textContent = MODE === "A" ? "有効面積" : "有効面積(必要面積を確保できるか)";
+  document.getElementById("rmodeM").classList.toggle("on", RMODE === "M");
+  document.getElementById("rmodeR").classList.toggle("on", RMODE === "R");
   rows.forEach((_, i) => updateResult(i));
+  applyHide30();
 }
 
 function updateResult(i){
   const tr = document.querySelector(`#rows tr[data-i="${i}"]`);
-  if (!tr) return;
+  if (!tr || rows[i].type === "memo") return;
   tr.classList.toggle("done", !!rows[i].done);
   const j = judge(rows[i]);
   const CTXT = { saiko:"1/20", kanki:"1/20", haien:"1/50" };
@@ -363,13 +493,25 @@ function updateResult(i){
   } else if (j.empty){
     cells = Array(6).fill(blankCell());
   } else {
+    const rx = rows[i].relax || {};
+    // 規制がかかる欄:措置面では措置(緩和告示を選んでいればその告示)、緩和告示面では選択欄を出す
+    const reg = (k, measure) => {
+      if (RMODE === "R"){
+        const cur = rx[k] || RELAX[k][0];
+        const opts = RELAX[k].map(o => `<option ${o===cur?"selected":""}>${o}</option>`).join("");
+        return `<div class="req"><span class="circle"></span><select class="relaxsel ${rx[k]?"on":""}" onchange="setRelax(${i},'${k}',this.value)">${opts}</select></div>`;
+      }
+      return rx[k] ? `<div class="req"><span class="circle"></span><span class="txt relax">${esc(rx[k])}</span></div>` : circle(measure);
+    };
     cells = [
-      j.saiko ? circle("居室+避難経路") : blankCell(),
+      j.saiko ? reg("hijo", "居室+避難経路") : blankCell(),
       j.kanki ? circle("機械換気設備") : blankCell(),
-      j.haien ? circle("排煙設備") : blankCell(),
-      j.art35 ? circle("耐火・不燃") : blankCell(),
-      j.naiso ? circle("居室+避難経路<br>準不燃") : blankCell(),
-      j.saiko ? circle("30m(+10m)<br>重複1/2") : `<div class="req normal">50m(+10m)<br>重複1/2</div>`,
+      j.haien ? reg("haien", "排煙設備") : blankCell(),
+      j.art35 ? reg("kozo", "耐火・不燃") : blankCell(),
+      // 内装制限は床面積50㎡超の居室だけが対象。50㎡以下は「-」
+      !(parseFloat(rows[i].area) > NAISO_MIN_AREA) ? `<div class="req normal">-</div>`
+        : j.naiso ? reg("naiso", "居室+避難経路<br>準不燃") : blankCell(),
+      j.saiko ? reg("hoko", "30m(+10m)<br>重複1/2") : `<div class="req normal">50m(+10m)<br>重複1/2</div>`,
     ];
   }
   tr.querySelectorAll(".res-req").forEach((td, n) => { td.innerHTML = cells[n]; });
@@ -436,6 +578,7 @@ function fitTable(){
 window.addEventListener("resize", fitTable);
 
 MODE = loadMode();
+RMODE = loadRMode();
 rows = load();
 if (!rows.length) rows = [blank(), blank()];
 render();
