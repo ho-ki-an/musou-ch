@@ -148,8 +148,10 @@ table.main td.res-req{padding-left:2px;padding-right:2px}
       <th class="big" rowspan="3">床面積
         <button id="hide30" class="hidebtn no-print" onclick="toggleHide30()" title="押すたびに 全表示 → 30㎡以下 → 30㎡超 → 100㎡以下 → 100㎡超 と切り替わります">全表示</button>
       </th>
-      <th class="big" rowspan="3">居室/非居室</th>
-      <th class="sm" rowspan="3" title="無窓居室の印(判定には使いません)">無窓居室</th>
+      <th class="big" rowspan="3">居室/非居室
+        <button id="kindF" class="hidebtn no-print" onclick="toggleKind()" title="押すたびに 全表示 → 居室 → 非居室 と切り替わります">全表示</button>
+      </th>
+      <th class="sm" rowspan="3" title="チェックするとその室の係る規制を全て○にします">無窓居室</th>
       <th class="sm" colspan="3">
         <div class="modesw inhead no-print">
           <span class="lbl">判定方法:</span>
@@ -175,7 +177,9 @@ table.main td.res-req{padding-left:2px;padding-right:2px}
       <th class="sm" rowspan="2">排煙</th>
       <th class="sm">非常用照明</th>
       <th class="sm">換気設備</th>
-      <th class="sm">排煙設備</th>
+      <th class="sm">排煙設備
+        <button id="haienAll" class="hidebtn no-print" onclick="toggleHaienAll()" title="押すと全ての室の排煙設備を○にします(もう一度で戻る)">全て○</button>
+      </th>
       <th class="sm">主要構造部</th>
       <th class="sm">内装制限</th>
       <th class="sm">歩行距離</th>
@@ -270,10 +274,12 @@ let rows = [];
 let MODE = "A"; // A:有効面積を入力 / B:必要面積を算定しYes/Noで判定
 let RMODE = "M"; // 係る規制の表示 M:措置 / R:緩和告示を選ぶ
 const RMODE_KEY = KEY + "_rmode";
+let HAIEN_ALL = false; // 排煙設備を全ての室で○にする
+const HAIEN_ALL_KEY = KEY + "_haienall";
 // 係る規制の欄ごとの選択肢。先頭は通常の措置(緩和を使わない)。換気設備は告示がないため選択なし
 const RELAX = {
   hijo:  ["非常用照明", "H12 1411号"],
-  haien: ["機械排煙", "H12 1436号ヘ(1)", "H12 1436号ヘ(2)", "H12 1436号ヘ(3)", "H12 1436号ヘ(4)", "H12 1436号ヘ(5)"],
+  haien: ["排煙設備", "自然排煙", "機械排煙", "避難安全", "H12 1436号ヘ(1)", "H12 1436号ヘ(2)", "H12 1436号ヘ(3)", "H12 1436号ヘ(4)", "H12 1436号ヘ(5)"],
   kozo:  ["区画", "R2 249号", "例規2-d-035"],
   naiso: ["準不", "251号"],
   hoko:  ["30m", "R5 208号"],
@@ -291,6 +297,13 @@ function fixRelax(rx){
   });
   return out;
 }
+// 選べる告示は室の種類で絞る(1436号ヘ:居室は(3)〜(5)、非居室は(1)(2))
+const HAIEN_KIND = { "居室":["3","4","5"], "非居室":["1","2"] };
+function relaxList(k, kind){
+  if (k !== "haien") return RELAX[k];
+  const ok = HAIEN_KIND[kind] || HAIEN_KIND["居室"];
+  return RELAX[k].filter(o => { const m = o.match(/ヘ\((\d)\)$/); return !m || ok.includes(m[1]); });
+}
 
 function blank(){ return {name:"", area:"", saiko:"", kanki:"", haien:"", okSaiko:"", okKanki:"", okHaien:"", open35:false, mumado:false, kind:"居室", done:false, grey:{}, relax:{}}; }
 function memoRow(text){ return {type:"memo", text: text || ""}; }
@@ -304,7 +317,8 @@ function addMemo(ev, i){
   if (el) el.focus();
   return false;
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(rows)); localStorage.setItem(MODE_KEY, MODE); localStorage.setItem(RMODE_KEY, RMODE); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(rows)); localStorage.setItem(MODE_KEY, MODE); localStorage.setItem(RMODE_KEY, RMODE); localStorage.setItem(HAIEN_ALL_KEY, HAIEN_ALL ? "1" : ""); }catch(e){} }
+function loadHaienAll(){ try{ return localStorage.getItem(HAIEN_ALL_KEY) === "1"; }catch(e){ return false; } }
 function loadMode(){ try{ return localStorage.getItem(MODE_KEY) === "B" ? "B" : "A"; }catch(e){ return "A"; } }
 function loadRMode(){ try{ return localStorage.getItem(RMODE_KEY) === "R" ? "R" : "M"; }catch(e){ return "M"; } }
 
@@ -322,22 +336,40 @@ function toggleHide30(){
   AFILTER = (AFILTER + 1) % AREA_FILTERS.length;
   applyHide30();
 }
+// 居室/非居室による表示の切替:全表示 → 居室 → 非居室 → 全表示
+const KIND_FILTERS = [
+  { label:"全表示",           show: k => true },
+  { label:"居室を表示",       show: k => k === "居室" },
+  { label:"非居室を<wbr>表示", show: k => k === "非居室" },
+];
+let KFILTER = 0;
+function toggleKind(){
+  KFILTER = (KFILTER + 1) % KIND_FILTERS.length;
+  applyHide30();
+}
 // 入力中に行が消えないよう、隠すのは描画時とボタン操作時だけ
 function applyHide30(){
-  const f = AREA_FILTERS[AFILTER];
-  let n = 0;
+  const f = AREA_FILTERS[AFILTER], kf = KIND_FILTERS[KFILTER];
+  let n = 0, nk = 0;
   document.querySelectorAll("#rows tr").forEach(tr => {
     const r = rows[+tr.dataset.i];
-    const a = r && r.type !== "memo" ? parseFloat(r.area) : NaN;
-    const hide = !isNaN(a) && !f.show(a);
-    tr.classList.toggle("hidden30", hide);
-    if (hide) n++;
+    const isRoom = r && r.type !== "memo";
+    const a = isRoom ? parseFloat(r.area) : NaN;
+    const hideA = !isNaN(a) && !f.show(a);
+    const hideK = isRoom && !kf.show(r.kind);
+    tr.classList.toggle("hidden30", hideA || hideK);
+    if (hideA) n++;
+    if (hideK) nk++;
   });
   const b = document.getElementById("hide30");
   b.classList.toggle("on", AFILTER !== 0);
   b.innerHTML = AFILTER === 0 ? f.label : `${f.label}<br>(${n}室 非表示)`;
+  const bk = document.getElementById("kindF");
+  bk.classList.toggle("on", KFILTER !== 0);
+  bk.innerHTML = KFILTER === 0 ? kf.label : `${kf.label}<br>(${nk}室 非表示)`;
 }
 
+function toggleHaienAll(){ HAIEN_ALL = !HAIEN_ALL; save(); render(); }
 function setMode(m){ MODE = m; save(); render(); }
 function setRMode(m){ RMODE = m; save(); render(); }
 function setRelax(i, k, v){
@@ -352,7 +384,7 @@ function delRow(i){ rows.splice(i,1); save(); render(); }
 function clearAll(){ if(confirm("全ての入力を消去しますか?")){ rows = [blank()]; save(); render(); } }
 
 function saveJSON(){
-  const data = { app:"mumado_hantei", version:2, savedAt:new Date().toISOString(), mode:MODE, rmode:RMODE, rows };
+  const data = { app:"mumado_hantei", version:2, savedAt:new Date().toISOString(), mode:MODE, rmode:RMODE, haienAll:HAIEN_ALL, rows };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   const d = new Date(), z = n => String(n).padStart(2,"0");
   const a = document.createElement("a");
@@ -378,6 +410,7 @@ function loadJSON(input){
       if (!rows.length) rows = [blank()];
       if (data.mode === "A" || data.mode === "B") MODE = data.mode;
       if (data.rmode === "M" || data.rmode === "R") RMODE = data.rmode;
+      HAIEN_ALL = !!data.haienAll;
       save(); render();
     } catch(e) {
       alert("JSONファイルを読み込めませんでした。\n" + e.message);
@@ -455,7 +488,7 @@ function render(){
         <option ${r.kind==="居室"?"selected":""}>居室</option>
         <option ${r.kind==="非居室"?"selected":""}>非居室</option>
       </select></td>
-      <td><input type="checkbox" ${r.mumado?"checked":""} onchange="upd(${i},'mumado',this.checked)" title="無窓居室の印(判定には使いません)"></td>
+      <td><input type="checkbox" ${r.mumado?"checked":""} onchange="upd(${i},'mumado',this.checked)" title="チェックするとこの室の係る規制を全て○にします"></td>
       <td>${mid("saiko")}</td>
       <td>${mid("kanki")}</td>
       <td>${mid("haien")}</td>
@@ -469,6 +502,7 @@ function render(){
   document.getElementById("midHead").textContent = MODE === "A" ? "有効面積" : "有効面積(必要面積を確保できるか)";
   document.getElementById("rmodeM").classList.toggle("on", RMODE === "M");
   document.getElementById("rmodeR").classList.toggle("on", RMODE === "R");
+  document.getElementById("haienAll").classList.toggle("on", HAIEN_ALL);
   rows.forEach((_, i) => updateResult(i));
   applyHide30();
 }
@@ -487,33 +521,35 @@ function updateResult(i){
   tr.querySelectorAll("[data-need]").forEach(b => {
     b.textContent = j.need ? ceil2(j.need[b.dataset.need]).toFixed(2) : "—";
   });
-  let cells;
-  if (j.na){
-    cells = Array(6).fill(`<div class="req normal">—</div>`);
-  } else if (j.empty){
-    cells = Array(6).fill(blankCell());
-  } else {
-    const rx = rows[i].relax || {};
-    // 規制がかかる欄:措置面では措置(緩和告示を選んでいればその告示)、緩和告示面では選択欄を出す
-    const reg = (k, measure) => {
-      if (RMODE === "R"){
-        const cur = rx[k] || RELAX[k][0];
-        const opts = RELAX[k].map(o => `<option ${o===cur?"selected":""}>${o}</option>`).join("");
-        return `<div class="req"><span class="circle"></span><select class="relaxsel ${rx[k]?"on":""}" onchange="setRelax(${i},'${k}',this.value)">${opts}</select></div>`;
-      }
-      return rx[k] ? `<div class="req"><span class="circle"></span><span class="txt relax">${esc(rx[k])}</span></div>` : circle(measure);
-    };
-    cells = [
-      j.saiko ? reg("hijo", "居室+避難経路") : blankCell(),
-      j.kanki ? circle("機械換気設備") : blankCell(),
-      j.haien ? reg("haien", "排煙設備") : blankCell(),
-      j.art35 ? reg("kozo", "耐火・不燃") : blankCell(),
-      // 内装制限は床面積50㎡超の居室だけが対象。50㎡以下は「-」
-      !(parseFloat(rows[i].area) > NAISO_MIN_AREA) ? `<div class="req normal">-</div>`
-        : j.naiso ? reg("naiso", "居室+避難経路<br>準不燃") : blankCell(),
-      j.saiko ? reg("hoko", "30m(+10m)<br>重複1/2") : `<div class="req normal">50m(+10m)<br>重複1/2</div>`,
-    ];
-  }
+  const r = rows[i], rx = r.relax || {};
+  // 規制がかかる欄:措置面では措置(緩和告示を選んでいればその告示)、緩和告示面では選択欄を出す
+  const reg = (k, measure) => {
+    const list = relaxList(k, r.kind);
+    const sel = list.includes(rx[k]) ? rx[k] : ""; // 室の種類で選べない告示は未選択として扱う
+    if (RMODE === "R"){
+      const cur = sel || list[0];
+      const opts = list.map(o => `<option ${o===cur?"selected":""}>${o}</option>`).join("");
+      return `<div class="req"><span class="circle"></span><select class="relaxsel ${sel?"on":""}" onchange="setRelax(${i},'${k}',this.value)">${opts}</select></div>`;
+    }
+    return sel ? `<div class="req"><span class="circle"></span><span class="txt relax">${esc(sel)}</span></div>` : circle(measure);
+  };
+  // 無窓居室にチェックした室は全ての欄を○にする
+  const all = !!r.mumado;
+  const ok = !j.na && !j.empty; // 判定結果があるか
+  const on = k => all || (ok && j[k]);
+  const none = j.na ? `<div class="req normal">—</div>` : blankCell();
+  const cells = [
+    on("saiko") ? reg("hijo", "居室+避難経路") : none,
+    on("kanki") ? circle("機械換気設備") : none,
+    on("haien") || HAIEN_ALL ? reg("haien", "排煙設備") : none,
+    on("art35") ? reg("kozo", "耐火・不燃") : none,
+    // 内装制限は床面積50㎡超の居室だけが対象。50㎡以下は「-」
+    all ? reg("naiso", "居室+避難経路<br>準不燃")
+      : !ok ? none
+      : !(parseFloat(r.area) > NAISO_MIN_AREA) ? `<div class="req normal">-</div>`
+      : j.naiso ? reg("naiso", "居室+避難経路<br>準不燃") : blankCell(),
+    on("saiko") ? reg("hoko", "30m(+10m)<br>重複1/2") : ok ? `<div class="req normal">50m(+10m)<br>重複1/2</div>` : none,
+  ];
   tr.querySelectorAll(".res-req").forEach((td, n) => { td.innerHTML = cells[n]; });
 }
 
@@ -579,6 +615,7 @@ window.addEventListener("resize", fitTable);
 
 MODE = loadMode();
 RMODE = loadRMode();
+HAIEN_ALL = loadHaienAll();
 rows = load();
 if (!rows.length) rows = [blank(), blank()];
 render();
